@@ -1,0 +1,210 @@
+\documentclass[12pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks = true,
+    urlcolor   = blue,
+    linkcolor  = black,
+    citecolor  = black
+}
+
+\begin{document}
+
+\title{Committee Assignment with Excel Data: README}
+\author{}
+\date{}
+\maketitle
+
+\section{Introduction}
+
+This document provides a step-by-step guide for using the Python script that
+\begin{enumerate}
+    \item Reads an Excel file containing students and their committee ratings,
+    \item Solves the assignment problem (maximizing total rating, respecting minimum/maximum committee size constraints),
+    \item Exports the result to a new Excel file that details each committee's assigned students.
+\end{enumerate}
+
+The solution is formulated as an Integer Linear Program (ILP) using the
+\texttt{PuLP} library (\url{https://github.com/coin-or/pulp}).
+The default solver is CBC, provided with PuLP.
+For a typical problem size (e.g., 100 students and 10 committees), the solution
+often completes in well under a second on a typical laptop.
+
+\section{Requirements}
+
+\begin{itemize}
+    \item \textbf{Python 3.7+} (or later)
+    \item \textbf{pip} (Python package manager)
+\end{itemize}
+
+\section{Installation}
+
+\begin{enumerate}
+    \item Clone or download this repository (containing the Python script).
+    \item Install required Python libraries:
+          \begin{verbatim}
+pip install pulp pandas openpyxl
+    \end{verbatim}
+    \item \texttt{pulp} is used for ILP solving,
+          \texttt{pandas} for reading/writing Excel,
+          and \texttt{openpyxl} for \texttt{.xlsx} support.
+\end{enumerate}
+
+\section{Data Format (Excel)}
+
+Your \textbf{input Excel file} should have:
+\begin{itemize}
+    \item \textbf{Column A}: Student names (or IDs), one row per student.
+    \item \textbf{Columns B..M}: Numerical ratings for each committee.
+          If there are $m$ committees, you should have $m$ columns of ratings
+          after the first name column.
+\end{itemize}
+
+An example with 3 committees:
+
+\begin{center}
+    \begin{tabular}{lrrr}
+        \hline
+        Name  & Comm0 & Comm1 & Comm2 \\
+        \hline
+        Alice & 10    & 3     & 5     \\
+        Bob   & 2     & 9     & 1     \\
+        Carol & 7     & 4     & 10    \\
+        \hline
+    \end{tabular}
+\end{center}
+
+\section{How to Use}
+
+\subsection{Step 1: Prepare the Excel File}
+
+\begin{enumerate}
+    \item Create (or update) a file named, for example, \texttt{students\_committees.xlsx} with the described format.
+    \item Make sure there are no extra blank rows or header rows that might break the parsing.
+\end{enumerate}
+
+\subsection{Step 2: Configure min/max Constraints}
+
+Open \texttt{committee\_assignment\_excel\_final.py} (or similarly named script)
+and look for the following lines in the \verb|if __name__ == "__main__":| block:
+
+\begin{verbatim}
+# Example: a single global min=2, max=10 for all committees
+global_min_value = 2
+global_max_value = 10
+
+# Or define per-committee arrays...
+min_sizes = None
+max_sizes = None
+\end{verbatim}
+
+You can set constraints in three ways:
+
+\begin{enumerate}
+    \item \textbf{Global constraints for all committees:}\\
+          Set \texttt{global\_min\_value} and \texttt{global\_max\_value} to your desired integers
+          (e.g.\ 2 and 10). Then keep \texttt{min\_sizes = None} and \texttt{max\_sizes = None}.
+
+    \item \textbf{Per-committee constraints:}\\
+          Let \texttt{min\_sizes = [m1, m2, ..., m\_j]}
+          and \texttt{max\_sizes = [M1, M2, ..., M\_j]}, one entry per committee, and set
+          \texttt{global\_min\_value = None} and \texttt{global\_max\_value = None}.
+
+    \item \textbf{Combine both:}\\
+          If you pass both global and per-committee values, the code merges them:
+          \[
+              \mathrm{final\_min}[j] = \max(\mathrm{min\_sizes}[j], \mathrm{global\_min\_value}),
+          \]
+          \[
+              \mathrm{final\_max}[j] = \min(\mathrm{max\_sizes}[j], \mathrm{global\_max\_value}).
+          \]
+\end{enumerate}
+
+\subsection{Step 3: Run the Script}
+
+After configuring the constraints, run:
+
+\begin{verbatim}
+python committee_assignment_excel_final.py
+\end{verbatim}
+
+\begin{itemize}
+    \item The script reads the file (e.g. \texttt{students\_committees.xlsx})
+          and sets up an ILP to maximize the sum of ratings.
+    \item It solves the assignment using the default CBC solver.
+    \item By default, it writes the results to \texttt{results.xlsx}.
+\end{itemize}
+
+You can change file names by editing:
+
+\begin{verbatim}
+excel_input = "students_committees.xlsx"
+excel_output = "results.xlsx"
+\end{verbatim}
+
+\subsection{Step 4: Inspect the Output}
+
+The script creates \texttt{results.xlsx} with a single sheet named \emph{"Assignments"}.
+Each committee is placed in its own column. Within each column:
+
+\begin{itemize}
+    \item Row 1: \texttt{Committee j}
+    \item Row 2: \texttt{Total rating: X}
+    \item Row 3: \texttt{Number assigned: Y}
+    \item Rows 4+: The names of the assigned students
+\end{itemize}
+
+If committees differ in number of assigned students, extra cells will remain blank.
+For instance:
+
+\begin{center}
+    \begin{tabular}{lll}
+        \textbf{Committee\_0} & \textbf{Committee\_1} & \textbf{Committee\_2} \\
+        \hline
+        Committee 0           & Committee 1           & Committee 2           \\
+        Total rating: 15      & Total rating: 22      & Total rating: 18      \\
+        Number assigned: 2    & Number assigned: 3    & Number assigned: 1    \\
+        Alice                 & Bob                   & Carol                 \\
+        David                 & Eve                   &                       \\
+                              & Frank                 &                       \\
+    \end{tabular}
+\end{center}
+
+\section{Customization}
+
+\begin{itemize}
+    \item \textbf{Alternative Solvers}:
+          If you have Gurobi, CPLEX, or GLPK, you can replace
+          \verb|prob.solve()| in the code with e.g. \verb|prob.solve(pulp.GUROBI_CMD())|.
+    \item \textbf{Additional Constraints}:
+          You can add new constraints (e.g., a specific student cannot join certain committees)
+          by editing the \verb|solve_committee_assignment| function.
+    \item \textbf{Output Format}:
+          If you want each committee on a separate sheet or a different layout,
+          modify the section in \verb|solve_from_excel| that exports the \verb|results.xlsx|.
+\end{itemize}
+
+\section{FAQ}
+
+\paragraph{Q: Why might I see \texttt{"No optimal solution found!"}?}
+\begin{itemize}
+    \item If the sum of minimum constraints exceeds the number of students, or
+          if the sum of maximum constraints is less than the number of students,
+          the problem is infeasible.
+    \item Alternatively, the solver might fail or be missing. Confirm that
+          \texttt{pulp} and \texttt{CBC} are installed correctly.
+\end{itemize}
+
+\paragraph{Q: How fast does it run?}
+\begin{itemize}
+    \item For about 100 students and 10 committees, the default CBC solver
+          typically finds an optimal solution in less than a second.
+\end{itemize}
+
+\paragraph{Q: Can I read from CSV instead of Excel?}
+\begin{itemize}
+    \item Yes, replace \verb|pd.read_excel(...)| with \verb|pd.read_csv(...)|.
+          Make sure to adjust for any header rows or column differences.
+\end{itemize}
+
+\end{document}
